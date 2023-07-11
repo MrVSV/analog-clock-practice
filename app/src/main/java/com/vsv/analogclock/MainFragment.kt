@@ -33,10 +33,10 @@ class MainFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         viewLifecycleOwner.lifecycleScope.launch {
-            while (true) {
-                binding.analogClock.setTime()
-                delay(500)
-            }
+//            while (true) {
+//                binding.analogClock.setTime()
+//                delay(500)
+//            }
         }
     }
 }

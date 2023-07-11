@@ -1,5 +1,6 @@
 package com.vsv.analogclock
 
+import android.annotation.SuppressLint
 import android.content.ContentValues.TAG
 import android.content.Context
 import android.graphics.Canvas
@@ -9,6 +10,8 @@ import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.Log
 import android.util.TypedValue
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import androidx.annotation.ColorInt
 import androidx.core.graphics.toRectF
@@ -67,17 +70,65 @@ class AnalogClockView @JvmOverloads constructor(
     private var borderRadius by Delegates.notNull<Float>()
     private var centerRadius by Delegates.notNull<Float>()
     private val hours = (1..12).toList()
-    private val minutes = (1..60).toList()
-    private var timeList: List<Double> = listOf(0.toDouble(), 3.toDouble(), 4.toDouble())
+    private val minutes = (0..59).toList()
+    private var timeList: MutableList<Double> = mutableListOf(0.toDouble(), 3.toDouble(), 4.toDouble())
     private var handTruncation by Delegates.notNull<Int>()
     private var hourHandTruncation by Delegates.notNull<Int>()
     private var hoursTextSize by Delegates.notNull<Float>()
     private val hoursTextRect = Rect()
+    private var moverX  by Delegates.notNull<Float>()
+    private val list = mutableListOf<Int>()
 
     init {
         attrs?.let { setAttrs(it) }
         setup()
     }
+
+    private val myListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean {
+            return true
+        }
+    }
+
+    private val detector: GestureDetector = GestureDetector(context, myListener)
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val x = event.x
+        val y = event.y
+
+        return if (!detector.onTouchEvent(event)) {
+            when (event.action) {
+                MotionEvent.ACTION_MOVE -> {
+
+                    if (y in (viewRect.bottom-40).toFloat()..(viewRect.bottom).toFloat()) {
+                        if(x !in (list.first().toFloat()..list.last().toFloat()))
+                            event.action = MotionEvent.ACTION_CANCEL
+                        else {
+                            Log.d(TAG, "onTouchEvent: $x")
+                            moverX = x
+                            list.forEachIndexed { index, mark ->
+                                if (mark in (moverX.toInt()-10)..(moverX.toInt()+10)) {
+                                    timeList[0] = index.toDouble()
+                                    Log.d(TAG, "mark: $mark, x: $x")
+                                    Log.d(TAG, "${timeList[0]}")
+
+                                }
+                                invalidate()
+                            }
+
+
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP -> Log.d(TAG, "up")
+            }
+            true
+        } else {
+            Log.d(TAG, "down")
+            true
+        }
+    }
+
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
 
@@ -111,6 +162,17 @@ class AnalogClockView @JvmOverloads constructor(
         drawHandLine(canvas, (timeList[0] + timeList[1] / 60) * 5, isHour = true, isSecond = false)
         drawHandLine(canvas, timeList[1] + timeList[2] / 60, isHour = false, isSecond = false)
         drawHandLine(canvas, timeList[2], isHour = false, isSecond = true)
+        canvas.drawLine(
+            (list.first()).toFloat(),
+            (viewRect.bottom-20).toFloat(),
+            (list.last()).toFloat(),
+            (viewRect.bottom-20).toFloat(),
+            minutesHandPaint
+        )
+        canvas.drawCircle(moverX,(viewRect.bottom-20).toFloat(), 20f, centerPaint)
+        list.forEach { mark ->
+            canvas.drawLine(mark.toFloat(), (viewRect.bottom-10).toFloat(), mark.toFloat(), (viewRect.bottom-30).toFloat(), minutesMarksPaint)
+        }
     }
 
     private fun drawHandLine(canvas: Canvas, moment: Double, isHour: Boolean, isSecond: Boolean) {
@@ -174,7 +236,7 @@ class AnalogClockView @JvmOverloads constructor(
 
     private fun prepareSize(w: Int, h: Int) {
         size = min(w - paddingStart - paddingEnd, h - paddingTop - paddingBottom)
-        borderRadius = size / 2f - borderWidth / 2
+        borderRadius = size / 2f - borderWidth / 2 - 100
         viewCenterX = viewRect.toRectF().centerX() - paddingEnd / 2 + paddingStart / 2
         viewCenterY = viewRect.toRectF().centerY() - paddingBottom / 2 + paddingTop / 2
         centerRadius = borderRadius / 20
@@ -185,6 +247,14 @@ class AnalogClockView @JvmOverloads constructor(
         )
         handTruncation = (size / 10)
         hourHandTruncation = (size / 17)
+
+        val mark = (viewRect.width()-75)/12
+        for (i in (1..12)) {
+            list.add(i * mark)
+        }
+        moverX = list.first().toFloat()
+        Log.d(TAG, "prepareSize: $mark")
+        Log.d(TAG, "prepareSize: $list")
     }
 
     private fun setup() {
@@ -216,7 +286,7 @@ class AnalogClockView @JvmOverloads constructor(
         }
         with(minutesHandPaint) {
             color = minutesHandColor
-            strokeWidth = borderWidth /2
+            strokeWidth = borderWidth / 2
         }
         with(secondsHandPaint) {
             color = secondsHandColor
@@ -247,13 +317,13 @@ class AnalogClockView @JvmOverloads constructor(
         typedArray.recycle()
     }
 
-    fun setTime() {
-    val calendar = Calendar.getInstance()
-    var hour = calendar.get(Calendar.HOUR_OF_DAY).toDouble()
-    hour = if (hour > 12) hour - 12 else hour
-    val minute = calendar.get(Calendar.MINUTE).toDouble()
-    val second = calendar.get(Calendar.SECOND).toDouble()
-    timeList = listOf(hour, minute, second)
-    invalidate()
-}
+//    fun setTime() {
+//        val calendar = Calendar.getInstance()
+//        var hour = calendar.get(Calendar.HOUR_OF_DAY).toDouble()
+//        hour = if (hour > 12) hour - 12 else hour
+//        val minute = calendar.get(Calendar.MINUTE).toDouble()
+//        val second = calendar.get(Calendar.SECOND).toDouble()
+//        timeList = listOf(hour, minute, second)
+//        invalidate()
+//    }
 }
