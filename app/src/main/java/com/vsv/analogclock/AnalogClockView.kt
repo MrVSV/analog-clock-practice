@@ -16,7 +16,6 @@ import android.view.View
 import androidx.annotation.ColorInt
 import androidx.core.graphics.toRectF
 import com.vsv.analogclock.extentions.dpToPx
-import java.util.Calendar
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -71,12 +70,13 @@ class AnalogClockView @JvmOverloads constructor(
     private var centerRadius by Delegates.notNull<Float>()
     private val hours = (1..12).toList()
     private val minutes = (0..59).toList()
-    private var timeList: MutableList<Double> = mutableListOf(0.toDouble(), 3.toDouble(), 4.toDouble())
+    private var timeList: MutableList<Double> =
+        mutableListOf(0.toDouble(), 3.toDouble(), 4.toDouble())
     private var handTruncation by Delegates.notNull<Int>()
     private var hourHandTruncation by Delegates.notNull<Int>()
     private var hoursTextSize by Delegates.notNull<Float>()
     private val hoursTextRect = Rect()
-    private var moverX  by Delegates.notNull<Float>()
+    private var moverX by Delegates.notNull<Float>()
     private val list = mutableListOf<Int>()
 
     init {
@@ -84,49 +84,33 @@ class AnalogClockView @JvmOverloads constructor(
         setup()
     }
 
-    private val myListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean {
-            return true
+    private val myListener =
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                return true
+            }
         }
-    }
 
     private val detector: GestureDetector = GestureDetector(context, myListener)
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
         val y = event.y
-
-        return if (!detector.onTouchEvent(event)) {
-            when (event.action) {
-                MotionEvent.ACTION_MOVE -> {
-
-                    if (y in (viewRect.bottom-40).toFloat()..(viewRect.bottom).toFloat()) {
-                        if(x !in (list.first().toFloat()..list.last().toFloat()))
-                            event.action = MotionEvent.ACTION_CANCEL
-                        else {
-                            Log.d(TAG, "onTouchEvent: $x")
-                            moverX = x
-                            list.forEachIndexed { index, mark ->
-                                if (mark in (moverX.toInt()-10)..(moverX.toInt()+10)) {
-                                    timeList[0] = index.toDouble()
-                                    Log.d(TAG, "mark: $mark, x: $x")
-                                    Log.d(TAG, "${timeList[0]}")
-
-                                }
-                                invalidate()
-                            }
-
-
+        if (!detector.onTouchEvent(event)) {
+            if (y in (viewRect.bottom - 40).toFloat()..(viewRect.bottom).toFloat()) {
+                if (x in (list.first().toFloat()..list.last().toFloat())) {
+                    moverX = x
+                    list.forEachIndexed { index, mark ->
+                        if (mark in (moverX.toInt() - 10)..(moverX.toInt() + 10)) {
+                            timeList[0] = index.toDouble()
                         }
                     }
+                    invalidate()
                 }
-                MotionEvent.ACTION_UP -> Log.d(TAG, "up")
             }
-            true
-        } else {
-            Log.d(TAG, "down")
-            true
         }
+        return true
     }
 
 
@@ -164,14 +148,20 @@ class AnalogClockView @JvmOverloads constructor(
         drawHandLine(canvas, timeList[2], isHour = false, isSecond = true)
         canvas.drawLine(
             (list.first()).toFloat(),
-            (viewRect.bottom-20).toFloat(),
+            (viewRect.bottom - 20).toFloat(),
             (list.last()).toFloat(),
-            (viewRect.bottom-20).toFloat(),
+            (viewRect.bottom - 20).toFloat(),
             minutesHandPaint
         )
-        canvas.drawCircle(moverX,(viewRect.bottom-20).toFloat(), 20f, centerPaint)
+        canvas.drawCircle(moverX, (viewRect.bottom - 20).toFloat(), 20f, centerPaint)
         list.forEach { mark ->
-            canvas.drawLine(mark.toFloat(), (viewRect.bottom-10).toFloat(), mark.toFloat(), (viewRect.bottom-30).toFloat(), minutesMarksPaint)
+            canvas.drawLine(
+                mark.toFloat(),
+                (viewRect.bottom - 10).toFloat(),
+                mark.toFloat(),
+                (viewRect.bottom - 30).toFloat(),
+                minutesMarksPaint
+            )
         }
     }
 
@@ -248,7 +238,7 @@ class AnalogClockView @JvmOverloads constructor(
         handTruncation = (size / 10)
         hourHandTruncation = (size / 17)
 
-        val mark = (viewRect.width()-75)/12
+        val mark = (viewRect.width() - 75) / 12
         for (i in (1..12)) {
             list.add(i * mark)
         }
