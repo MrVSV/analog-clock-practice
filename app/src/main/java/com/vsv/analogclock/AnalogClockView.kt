@@ -1,14 +1,12 @@
 package com.vsv.analogclock
 
 import android.annotation.SuppressLint
-import android.content.ContentValues.TAG
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.util.AttributeSet
-import android.util.Log
 import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -16,8 +14,10 @@ import android.view.View
 import androidx.annotation.ColorInt
 import androidx.core.graphics.toRectF
 import com.vsv.analogclock.extentions.dpToPx
+import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.properties.Delegates
 
@@ -78,20 +78,20 @@ class AnalogClockView @JvmOverloads constructor(
     private val hoursTextRect = Rect()
     private var moverX by Delegates.notNull<Float>()
     private val list = mutableListOf<Int>()
+    private var angle: Double = 0.0
+    private var minuteText = 0
+
+    private val myListener =
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+        }
+
+    private val detector: GestureDetector = GestureDetector(context, myListener)
 
     init {
         attrs?.let { setAttrs(it) }
         setup()
     }
-
-    private val myListener =
-        object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent): Boolean {
-                return true
-            }
-        }
-
-    private val detector: GestureDetector = GestureDetector(context, myListener)
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -108,21 +108,26 @@ class AnalogClockView @JvmOverloads constructor(
                     }
                     invalidate()
                 }
+            } else if (y in (viewCenterY - borderRadius)..(viewCenterY + borderRadius) &&
+                x in (viewCenterX - borderRadius)..(viewCenterX + borderRadius)
+            ) {
+
+                angle =
+                    if((x-viewCenterX) > 0) atan(((y-viewCenterY)/(x-viewCenterX)).toDouble())
+                else atan(((y-viewCenterY)/(x-viewCenterX)).toDouble())+Math.PI
+                minuteText = (angle / Math.PI * 30).roundToInt()+15
+                if(minuteText == 60) minuteText = 0
+                invalidate()
             }
         }
         return true
     }
 
-
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-
         val desiredWidth = context.dpToPx(DEFAULT_SIZE).toInt() + paddingStart + paddingEnd
         val desiredHeight = context.dpToPx(DEFAULT_SIZE).toInt() + paddingTop + paddingBottom
-        Log.d(TAG, "spec: ${MeasureSpec.toString(widthMeasureSpec)}")
-        Log.d(TAG, "desire: $desiredWidth")
         val newMeasuredWidth = resolveSize(desiredWidth, widthMeasureSpec)
         val newMeasuredHeight = resolveSize(desiredHeight, heightMeasureSpec)
-        Log.d(TAG, "new: $newMeasuredWidth")
         setMeasuredDimension(newMeasuredWidth, newMeasuredHeight)
     }
 
@@ -143,9 +148,103 @@ class AnalogClockView @JvmOverloads constructor(
         drawBorderAndCenter(canvas)
         drawHours(canvas)
         drawMinutes(canvas)
-        drawHandLine(canvas, (timeList[0] + timeList[1] / 60) * 5, isHour = true, isSecond = false)
+//        drawHandLine(canvas, (timeList[0] + timeList[1] / 60) * 5, isHour = true, isSecond = false)
         drawHandLine(canvas, timeList[1] + timeList[2] / 60, isHour = false, isSecond = false)
-        drawHandLine(canvas, timeList[2], isHour = false, isSecond = true)
+//        drawHandLine(canvas, timeList[2], isHour = false, isSecond = true)
+//        drawSlider(canvas)
+        drawMinutesText(canvas)
+    }
+
+    private fun drawMinutesText(canvas: Canvas) {
+        with(hoursTextPaint){
+            textSize = hoursTextSize
+        }
+        canvas.drawText("minutes: $minuteText", viewCenterX, (viewRect.bottom-40).toFloat(), hoursTextPaint)
+
+    }
+
+    private fun setAttrs(attrs: AttributeSet) {
+        val typedArray = context.obtainStyledAttributes(attrs, R.styleable.AnalogClockView)
+        borderColor =
+            typedArray.getColor(R.styleable.AnalogClockView_borderColor, DEFAULT_BORDER_COLOR)
+        hoursNumbersColor = typedArray.getColor(
+            R.styleable.AnalogClockView_hoursNumbersColor,
+            DEFAULT_HOURS_NUMBERS_COLOR
+        )
+        hoursHandColor = typedArray.getColor(
+            R.styleable.AnalogClockView_hoursHandColor,
+            DEFAULT_HOURS_HAND_COLOR
+        )
+        minutesHandColor = typedArray.getColor(
+            R.styleable.AnalogClockView_minutesHandColor,
+            DEFAULT_MINUTES_HAND_COLOR
+        )
+        secondsHandColor = typedArray.getColor(
+            R.styleable.AnalogClockView_secondsHandColor,
+            DEFAULT_SECONDS_HAND_COLOR
+        )
+        typedArray.recycle()
+    }
+
+    private fun setup() {
+        with(borderPaint) {
+            color = borderColor
+            style = Paint.Style.STROKE
+            strokeWidth = borderWidth
+        }
+        with(centerPaint) {
+            color = borderColor
+            style = Paint.Style.FILL
+        }
+        with(hoursMarksPaint) {
+            color = borderColor
+            style = Paint.Style.STROKE
+            strokeWidth = borderWidth
+        }
+        with(minutesMarksPaint) {
+            color = borderColor
+            style = Paint.Style.STROKE
+            strokeWidth = borderWidth / 2
+        }
+        with(hoursTextPaint) {
+            color = hoursNumbersColor
+        }
+        with(hoursHandPaint) {
+            color = hoursHandColor
+            strokeWidth = borderWidth
+        }
+        with(minutesHandPaint) {
+            color = minutesHandColor
+            strokeWidth = borderWidth / 2
+        }
+        with(secondsHandPaint) {
+            color = secondsHandColor
+            strokeWidth = borderWidth / 3
+        }
+    }
+
+    private fun prepareSize(w: Int, h: Int) {
+        size = min(w - paddingStart - paddingEnd, h - paddingTop - paddingBottom)
+        borderRadius = size / 2f - borderWidth / 2 - 100
+        viewCenterX = viewRect.toRectF().centerX() - paddingEnd / 2 + paddingStart / 2
+        viewCenterY = viewRect.toRectF().centerY() - paddingBottom / 2 + paddingTop / 2
+        centerRadius = borderRadius / 20
+        hoursTextSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            borderRadius / 20,
+            resources.displayMetrics
+        )
+        handTruncation = (size / 10)
+        hourHandTruncation = (size / 17)
+
+        val mark = (viewRect.width() - 75) / 12
+        for (i in (1..12)) {
+            list.add(i * mark)
+        }
+        moverX = list.first().toFloat()
+    }
+
+    private fun drawSlider(canvas: Canvas) {
         canvas.drawLine(
             (list.first()).toFloat(),
             (viewRect.bottom - 20).toFloat(),
@@ -153,7 +252,6 @@ class AnalogClockView @JvmOverloads constructor(
             (viewRect.bottom - 20).toFloat(),
             minutesHandPaint
         )
-        canvas.drawCircle(moverX, (viewRect.bottom - 20).toFloat(), 20f, centerPaint)
         list.forEach { mark ->
             canvas.drawLine(
                 mark.toFloat(),
@@ -163,10 +261,11 @@ class AnalogClockView @JvmOverloads constructor(
                 minutesMarksPaint
             )
         }
+        canvas.drawCircle(moverX, (viewRect.bottom - 20).toFloat(), 20f, centerPaint)
     }
 
     private fun drawHandLine(canvas: Canvas, moment: Double, isHour: Boolean, isSecond: Boolean) {
-        val angle: Double = Math.PI * (moment - 15) / 30
+//        angle = Math.PI * (moment - 15) / 30
         val handRadius: Float =
             if (isHour) borderRadius - handTruncation - hourHandTruncation
             else borderRadius - handTruncation
@@ -222,89 +321,6 @@ class AnalogClockView @JvmOverloads constructor(
     private fun drawBorderAndCenter(canvas: Canvas) {
         canvas.drawCircle(viewCenterX, viewCenterY, borderRadius, borderPaint)
         canvas.drawCircle(viewCenterX, viewCenterY, centerRadius, centerPaint)
-    }
-
-    private fun prepareSize(w: Int, h: Int) {
-        size = min(w - paddingStart - paddingEnd, h - paddingTop - paddingBottom)
-        borderRadius = size / 2f - borderWidth / 2 - 100
-        viewCenterX = viewRect.toRectF().centerX() - paddingEnd / 2 + paddingStart / 2
-        viewCenterY = viewRect.toRectF().centerY() - paddingBottom / 2 + paddingTop / 2
-        centerRadius = borderRadius / 20
-        hoursTextSize = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_SP,
-            borderRadius / 20,
-            resources.displayMetrics
-        )
-        handTruncation = (size / 10)
-        hourHandTruncation = (size / 17)
-
-        val mark = (viewRect.width() - 75) / 12
-        for (i in (1..12)) {
-            list.add(i * mark)
-        }
-        moverX = list.first().toFloat()
-        Log.d(TAG, "prepareSize: $mark")
-        Log.d(TAG, "prepareSize: $list")
-    }
-
-    private fun setup() {
-        with(borderPaint) {
-            color = borderColor
-            style = Paint.Style.STROKE
-            strokeWidth = borderWidth
-        }
-        with(centerPaint) {
-            color = borderColor
-            style = Paint.Style.FILL
-        }
-        with(hoursMarksPaint) {
-            color = borderColor
-            style = Paint.Style.STROKE
-            strokeWidth = borderWidth
-        }
-        with(minutesMarksPaint) {
-            color = borderColor
-            style = Paint.Style.STROKE
-            strokeWidth = borderWidth / 2
-        }
-        with(hoursTextPaint) {
-            color = hoursNumbersColor
-        }
-        with(hoursHandPaint) {
-            color = hoursHandColor
-            strokeWidth = borderWidth
-        }
-        with(minutesHandPaint) {
-            color = minutesHandColor
-            strokeWidth = borderWidth / 2
-        }
-        with(secondsHandPaint) {
-            color = secondsHandColor
-            strokeWidth = borderWidth / 3
-        }
-    }
-
-    private fun setAttrs(attrs: AttributeSet) {
-        val typedArray = context.obtainStyledAttributes(attrs, R.styleable.AnalogClockView)
-        borderColor =
-            typedArray.getColor(R.styleable.AnalogClockView_borderColor, DEFAULT_BORDER_COLOR)
-        hoursNumbersColor = typedArray.getColor(
-            R.styleable.AnalogClockView_hoursNumbersColor,
-            DEFAULT_HOURS_NUMBERS_COLOR
-        )
-        hoursHandColor = typedArray.getColor(
-            R.styleable.AnalogClockView_hoursHandColor,
-            DEFAULT_HOURS_HAND_COLOR
-        )
-        minutesHandColor = typedArray.getColor(
-            R.styleable.AnalogClockView_minutesHandColor,
-            DEFAULT_MINUTES_HAND_COLOR
-        )
-        secondsHandColor = typedArray.getColor(
-            R.styleable.AnalogClockView_secondsHandColor,
-            DEFAULT_SECONDS_HAND_COLOR
-        )
-        typedArray.recycle()
     }
 
 //    fun setTime() {
